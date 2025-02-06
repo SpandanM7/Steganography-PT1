@@ -1,36 +1,45 @@
 import numpy as np
 from PIL import Image
-import random
 
-def extract_data(stego_image_path, data_length):
-    # Load the stego image
-    img = Image.open(stego_image_path)
-    img_array = np.array(img)
+def binary_to_text(binary_string):
+    """Convert binary string to text (8 bits per character)."""
+    chars = [chr(int(binary_string[i:i+8], 2)) for i in range(0, len(binary_string), 8)]
+    return ''.join(chars)
+
+def retrieve_data(image_path):
+    img = Image.open(image_path).convert('L')
+    img_array = np.array(img, dtype=np.uint8)
+
+    extracted_bits = []
     
-    # Flatten the image pixels and extract the LSB bits
-    height, width = img_array.shape[:2]
-    bitstream = []
-    random.seed(42)
+    # Extract the first 32 bits to get the length of the bitstream
+    length_bits = []
+    for i in range(32):
+        pixel_value = img_array[i // img_array.shape[1], i % img_array.shape[1]]
+        bit = pixel_value & 1
+        length_bits.append(str(bit))
     
-    for i in range(height):
-        for j in range(width):
-            if len(bitstream) < data_length * 8:  # Each character is 8 bits
-                pixel_value = img_array[i, j]
-                bit = pixel_value[0] & 1  # Get the LSB of the red channel
-                bitstream.append(str(bit))
-            if len(bitstream) >= data_length * 8:
+    bitstream_length = int(''.join(length_bits), 2)
+    
+    # Extract the actual bitstream
+    bits_extracted = 0
+    for i in range(img_array.shape[0]):
+        for j in range(img_array.shape[1]):
+            if bits_extracted >= bitstream_length + 32:
                 break
+            if bits_extracted >= 32:  # Skip the first 32 bits (length)
+                pixel_value = img_array[i, j]
+                bit = pixel_value & 1
+                extracted_bits.append(str(bit))
+            bits_extracted += 1
 
-    # Convert the bitstream back to bytes
-    byte_data = []
-    for i in range(0, len(bitstream), 8):
-        byte_data.append(int(''.join(bitstream[i:i+8]), 2))
+    # Convert bits to text
+    binary_string = ''.join(extracted_bits)
+    hidden_text = binary_to_text(binary_string)
     
-    # Decode the bytes to a string
-    decoded_data = bytes(byte_data).decode('utf-8', errors='ignore')
-    return decoded_data
+    return hidden_text
 
-# Example usage
-stego_image_path = 'stego_image.png'
-retrieved_data = extract_data(stego_image_path, len(data))
-print(f"Retrieved Data: {retrieved_data}")
+if __name__ == "__main__":
+    image_path = "stego_image.png"  # Path to the stego image
+    extracted_text = retrieve_data(image_path)
+    print("Extracted Text:", extracted_text)
