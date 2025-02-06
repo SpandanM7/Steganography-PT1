@@ -4,7 +4,7 @@ import random
 
 def embed_data(image_path, data, output_image_path):
     # Load the image
-    img = Image.open(image_path)
+    img = Image.open(image_path).convert('L')
     img_array = np.array(img)
     #print(img_array.shape)
     # Flatten the data into a bitstream (we assume each character is 8 bits)
@@ -21,7 +21,7 @@ def embed_data(image_path, data, output_image_path):
             if bits_index < len(bitstream):
                 # Randomly modify pixel
                 if random.random() > 0.5:
-                    img_array[i, j] = img_array[i, j] & ~1  # Set the LSB to 0
+                    img_array[i, j] = img_array[i, j] & 254  # Set the LSB to 0
                     img_array[i, j] = img_array[i, j] | int(bitstream[bits_index])  # Set the LSB to the bitstream value
                     bits_index += 1
             if bits_index >= len(bitstream):
@@ -34,7 +34,7 @@ def embed_data(image_path, data, output_image_path):
 
 # Example usage
 image_path = 'cover_image.png'
-data = "Secret Message"
+data = "hello"
 output_image_path = 'stego_image.png'
 embed_data(image_path, data, output_image_path)
 
@@ -43,35 +43,30 @@ embed_data(image_path, data, output_image_path)
 
 ################################
 
-def extract_data(stego_image_path, data_length):
-    # Load the stego image
-    img = Image.open(stego_image_path)
-    img_array = np.array(img)
-    
-    # Flatten the image pixels and extract the LSB bits
-    height, width = img_array.shape[:2]
-    bitstream = []
-    random.seed(42)
-    
-    for i in range(height):
-        for j in range(width):
-            if len(bitstream) < data_length * 8:  # Each character is 8 bits
-                pixel_value = img_array[i, j]
-                bit = pixel_value[0] & 1  # Get the LSB of the red channel
-                bitstream.append(str(bit))
-            if len(bitstream) >= data_length * 8:
-                break
+import numpy as np
+from PIL import Image
 
-    # Convert the bitstream back to bytes
-    byte_data = []
-    for i in range(0, len(bitstream), 8):
-        byte_data.append(int(''.join(bitstream[i:i+8]), 2))
-    
-    # Decode the bytes to a string
-    decoded_data = bytes(byte_data).decode('utf-8', errors='ignore')
-    return decoded_data
+def retrieve_data(image_path):
+    img = Image.open(image_path)
+    img_array = np.array(img, dtype=np.uint8)
+
+    extracted_bits = []
+
+    for i in range(img_array.shape[0]):
+        for j in range(img_array.shape[1]):
+            pixel_value = img_array[i, j]  # This is either a scalar (grayscale) or an array (RGB)
+
+            if len(img_array.shape) == 2:  # Grayscale
+                bit = pixel_value & 1  # Get LSB directly
+            else:  # RGB
+                bit = pixel_value[0] & 1  # Get LSB from Red channel
+
+            extracted_bits.append(str(bit))
+
+    return ''.join(extracted_bits)
 
 # Example usage
-stego_image_path = 'stego_image.png'
-retrieved_data = extract_data(stego_image_path, len(data))
-print(f"Retrieved Data: {retrieved_data}")
+image_path = "stego_image.png"
+data = retrieve_data(image_path)
+print("Extracted Binary Data:", data)
+
